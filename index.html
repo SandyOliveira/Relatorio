@@ -2,68 +2,117 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Relatório de Aulas - Vitoria</title>
+  <title>Relatório de Aulas</title>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
   <style>
     body {
-      font-family: 'Arial', sans-serif;
-      background: #f9f9f9;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f5f7fb;
       margin: 0;
-      padding: 0;
+      padding: 40px 0;
       display: flex;
       justify-content: center;
     }
+
     .container {
       background: #fff;
-      width: 700px;
-      margin: 40px;
-      padding: 30px;
-      border-radius: 12px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+      width: 800px;
+      padding: 30px 40px;
+      border-radius: 16px;
+      box-shadow: 0 6px 25px rgba(0,0,0,0.08);
     }
-    h1, h2, h3 {
-      margin: 0 0 10px 0;
-    }
+
     h1 {
       color: #4B4BFF;
       text-align: center;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
     }
+
     h2 {
       color: #333;
-      margin-bottom: 5px;
+      margin-top: 30px;
+      border-left: 4px solid #4B4BFF;
+      padding-left: 10px;
     }
-    h3 {
+
+    .aluna-info {
+      text-align: center;
+      margin-bottom: 25px;
       color: #555;
-      margin-bottom: 15px;
     }
+
     .creditos {
-      background: #e0f7fa;
-      padding: 10px 15px;
-      border-radius: 8px;
-      display: inline-block;
-      margin-bottom: 20px;
+      background: #e8f5e9;
+      color: #2e7d32;
       font-weight: bold;
-      color: #00796b;
+      display: inline-block;
+      padding: 8px 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
     }
-    .aula {
-      background: #f1f1f1;
+
+    .modulo {
+      background: #fafafa;
+      border-radius: 12px;
       padding: 15px 20px;
-      margin-bottom: 12px;
-      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05);
       transition: 0.3s;
     }
-    .aula:hover {
-      background: #e0e0ff;
+
+    .modulo:hover {
+      background: #f0f3ff;
     }
-    .aula-title {
+
+    .modulo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .modulo-nome {
       font-weight: bold;
+      font-size: 18px;
       color: #3f51b5;
-      margin-bottom: 5px;
     }
+
+    .status {
+      font-size: 13px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      color: white;
+    }
+
+    .status.atual { background: #4b4bff; }
+    .status.concluido { background: #43a047; }
+
+    .aulas-lista {
+      margin-top: 10px;
+      padding-left: 20px;
+    }
+
+    .aula {
+      background: #f9f9f9;
+      border-left: 3px solid #4b4bff;
+      padding: 10px 15px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+
+    .aula-title {
+      color: #1a237e;
+      font-weight: bold;
+    }
+
     .aula-info {
       color: #333;
+    }
+
+    .nenhuma-aula {
+      color: #888;
+      font-style: italic;
+      padding-left: 20px;
     }
   </style>
 </head>
@@ -71,12 +120,13 @@
 <body>
   <div class="container">
     <h1>Relatório de Aulas</h1>
-    <h2 id="modulo">Módulo - </h2>
-    <h3 id="aluna">Aluna: </h3>
-    <div class="creditos">Créditos disponíveis: <span id="creditos">0</span></div>
+    <div class="aluna-info">
+      <h3 id="aluna">Aluna:</h3>
+      <div class="creditos">Créditos disponíveis: <span id="creditos">0</span></div>
+    </div>
 
-    <h2>Trilha de Aulas</h2>
-    <div id="listaAulas"></div>
+    <h2>Progresso por Módulo</h2>
+    <div id="modulosContainer"></div>
   </div>
 
   <script>
@@ -91,35 +141,87 @@
     const db = firebase.firestore();
 
     const params = new URLSearchParams(window.location.search);
-    const alunoId = params.get("aluno") || "vitoria";
+    const alunoId = params.get("aluno") || "vitoriazanzoni";
 
-    async function carregarDados() {
-      const doc = await db.collection("alunos").doc(alunoId).get();
-      if (doc.exists) {
-        document.getElementById("modulo").innerText = "Módulo - " + doc.data().modulo;
-        document.getElementById("aluna").innerText = "Aluna: " + doc.data().nome;
-        document.getElementById("creditos").innerText = doc.data().creditos;
+    async function carregarRelatorio() {
+      const alunoRef = db.collection("alunos").doc(alunoId);
+      const docAluno = await alunoRef.get();
+
+      if (!docAluno.exists) {
+        document.getElementById("aluna").innerText = "Aluno não encontrado.";
+        return;
       }
-      carregarAulas();
-    }
 
-    async function carregarAulas() {
-      const container = document.getElementById("listaAulas");
-      container.innerHTML = "";
-      const snapshot = await db.collection("alunos").doc(alunoId).collection("aulas").get();
+      const dados = docAluno.data();
+      document.getElementById("aluna").innerText = "Aluna: " + dados.nome;
+      document.getElementById("creditos").innerText = dados.creditosTotais || 0;
 
-      snapshot.forEach(aula => {
+      const moduloAtual = dados.modulo;
+      const modContainer = document.getElementById("modulosContainer");
+      modContainer.innerHTML = "";
+
+      const modulosSnap = await alunoRef.collection("modulos").get();
+
+      if (modulosSnap.empty) {
+        modContainer.innerHTML = "<p>Nenhum módulo registrado ainda.</p>";
+        return;
+      }
+
+      // Organizar módulos por nome (ordem alfabética/natural)
+      const modulosOrdenados = modulosSnap.docs.sort((a, b) => a.id.localeCompare(b.id, 'pt', { numeric: true }));
+
+      for (const moduloDoc of modulosOrdenados) {
+        const moduloNome = moduloDoc.id;
+        const dadosModulo = moduloDoc.data();
+        const aulasSnap = await alunoRef.collection("modulos").doc(moduloNome).collection("aulas").get();
+
         const div = document.createElement("div");
-        div.className = "aula";
-        div.innerHTML = `
-          <div class="aula-title">${aula.id} - ${aula.data().data} (${aula.data().horario})</div>
-          <div class="aula-info">${aula.data().conteudo}</div>
-        `;
-        container.appendChild(div);
-      });
+        div.className = "modulo";
+
+        const header = document.createElement("div");
+        header.className = "modulo-header";
+
+        const nomeEl = document.createElement("div");
+        nomeEl.className = "modulo-nome";
+        nomeEl.innerText = moduloNome;
+
+        const status = document.createElement("div");
+        status.className = "status " + (moduloNome === moduloAtual ? "atual" : "concluido");
+        status.innerText = moduloNome === moduloAtual ? "Em andamento" : "Concluído";
+
+        header.appendChild(nomeEl);
+        header.appendChild(status);
+        div.appendChild(header);
+
+        // Listar aulas
+        if (aulasSnap.empty) {
+          const p = document.createElement("p");
+          p.className = "nenhuma-aula";
+          p.innerText = "Nenhuma aula registrada neste módulo.";
+          div.appendChild(p);
+        } else {
+          const ul = document.createElement("div");
+          ul.className = "aulas-lista";
+
+          aulasSnap.forEach(aula => {
+            const a = aula.data();
+            const aulaDiv = document.createElement("div");
+            aulaDiv.className = "aula";
+            aulaDiv.innerHTML = `
+              <div class="aula-title">${aula.id} - ${a.data} (${a.horario})</div>
+              <div class="aula-info">Conteúdo: ${a.conteudo}</div>
+            `;
+            ul.appendChild(aulaDiv);
+          });
+
+          div.appendChild(ul);
+        }
+
+        modContainer.appendChild(div);
+      }
     }
 
-    carregarDados();
+    carregarRelatorio();
   </script>
 </body>
 </html>
